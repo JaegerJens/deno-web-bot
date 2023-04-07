@@ -42,9 +42,9 @@ interface JobDetails extends JobEntry {
     offer?: string;
 }
 
-async function getJobList(browser: Browser, category: JobCategory): Promise<JobEntry[]> {
+async function getJobList(browser: Browser, category: JobCategory, pageNumber: number): Promise<JobEntry[]> {
     const page = await browser.newPage();
-    await page.goto(buildRequestUrl(category, 1).href);
+    await page.goto(buildRequestUrl(category, pageNumber).href);
     await page.waitForSelector('input[data-genesis-element=FORM_INPUT]', { timeout: 6000 });
     const list: string[] = await page.$$eval(articleTitleSelector, list => list.map(el => el.href));
     const result: JobEntry[] = list.filter(link => link.includes('stellenangebote--')).map(link => ({ detailsLink: new URL(link) }));
@@ -52,8 +52,6 @@ async function getJobList(browser: Browser, category: JobCategory): Promise<JobE
 
     return result;
 }
-
-
 
 async function getJobDetails(browser: Browser, job: JobEntry): Promise<JobDetails> {
     const page = await browser.newPage();
@@ -76,9 +74,13 @@ async function getJobDetails(browser: Browser, job: JobEntry): Promise<JobDetail
     };
 }
 
-async function main() {
+async function main(pageCount: number) {
     const browser = await puppeteer.launch({ headless: false });
-    const jobList = await getJobList(browser, JobCategory.KI);
+    let jobList: JobEntry[] = [];
+    for(let page=1; page < pageCount; page++) {
+        const jobs = await getJobList(browser, JobCategory.KI, page);
+        jobList = jobList.concat(jobs);
+    }
 
     const details: JobDetails[] = [];
     for await (const job of jobList) {
@@ -92,4 +94,4 @@ async function main() {
     await Deno.writeTextFile('job-offers.json', JSON.stringify(details));
 }
 
-await main();
+await main(5);
